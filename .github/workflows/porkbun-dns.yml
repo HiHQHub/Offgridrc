@@ -1,0 +1,58 @@
+name: Repair Resend sending DNS
+on:
+  workflow_dispatch:
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required secrets
+        env:
+          API_KEY: ${{ secrets.PORKBUN_API_KEY }}
+          SECRET_KEY: ${{ secrets.PORKBUN_SECRET_API_KEY }}
+        run: |
+          if [ -z "$API_KEY" ] || [ -z "$SECRET_KEY" ]; then
+            echo "::error::Set PORKBUN_API_KEY and PORKBUN_SECRET_API_KEY as repository Actions secrets."
+            exit 1
+          fi
+      - name: Ensure Resend SPF records in Porkbun DNS
+        env:
+          API_KEY: ${{ secrets.PORKBUN_API_KEY }}
+          SECRET_KEY: ${{ secrets.PORKBUN_SECRET_API_KEY }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          base = "https://api.porkbun.com/api/json/v3/dns"
+          domain = "offgridrc.com"
+          auth = {"apikey": os.environ["API_KEY"], "secretapikey": os.environ["SECRET_KEY"]}
+          def call(path, data):
+              req = urllib.request.Request(base + path, data=json.dumps(dict(auth, **data)).encode(), headers={"Content-Type":"application/json"})
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  obj = json.load(r)
+              if obj.get("status") != "SUCCESS":
+                  raise RuntimeError(f"Porkbun API failed: {obj.get('message',obj.get('status'))}")
+              return obj
+          rows = call("/retrieve/" + domain, {}).get("records", [])
+          wanted = [
+              ("MX", "send", "feedback-smtp.eu-west-1.amazonses.com", "10"),
+              ("TXT", "send", "v=spf1 include:amazonses.com ~all", None)
+          ]
+          for kind, name, value, prio in wanted:
+              fqdn = name + "." + domain
+              matches = [r for r in rows if r.get("type", "").upper()==kind and r.get("name","").rstrip(".").lower()==fqdn]
+              exact = [r for r in matches if r.get("content","").rstrip(".")==value.rstrip(".") and (prio is None or str(r.get("prio"))==prio)]
+              if exact:
+                  print(f"{kind} {fqdn}: already correct")
+                  continue
+              if len(matches)>1:
+                  raise RuntimeError(f"Multiple {kind} records at {fqdn}; manual review required to avoid disrupting DNS")
+              data={"name":name,"type":kind,"content":value,"ttl":"600"}
+              if prio is not None:
+                  data["prio"]=prio
+              if len(matches)==1:
+                  print(f"Updating {kind} {fqdn}")
+                  call("/edit/" + domain + "/" + str(matches[0]["id"]), data)
+              else:
+                  print(f"Creating {kind} {fqdn}")
+                  call("/create/" + domain, data)
+          print("Porkbun changes submitted. Check DNS authority and reverify in Resend.")
+          PY
