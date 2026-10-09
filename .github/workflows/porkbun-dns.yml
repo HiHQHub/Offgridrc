@@ -49,7 +49,15 @@ jobs:
                   # Do not print response bodies or credentials.
                   if e.code == 400 and "001" in str(e.reason):
                       raise RuntimeError("Porkbun rejected the API key/secret pair (001). Replace both secrets with a matching active pair.") from None
-                  raise RuntimeError(f"Porkbun request failed with HTTP {e.code}; check key permissions and domain API access.") from None
+                  try:
+                      detail = json.loads(e.read())
+                  except (ValueError, UnicodeDecodeError):
+                      detail = {}
+                  message = str(detail.get("message", "No error detail"))
+                  for secret in auth.values():
+                      message = message.replace(secret, "[redacted]")
+                  message = message.replace("\\n", " ").replace("\\r", " ")[:240]
+                  raise RuntimeError(f"Porkbun request failed with HTTP {e.code}: {message}") from None
               if obj.get("status") != "SUCCESS":
                   raise RuntimeError(f"Porkbun API failed: {obj.get('message',obj.get('status'))}")
               return obj
