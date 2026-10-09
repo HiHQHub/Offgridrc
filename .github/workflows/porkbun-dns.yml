@@ -11,7 +11,9 @@ jobs:
           SECRET_KEY: ${{ secrets.PORKBUN_SECRET_API_KEY }}
         run: |
           if [ -z "$API_KEY" ] || [ -z "$SECRET_KEY" ]; then
-            echo "::error::Set PORKBUN_API_KEY and PORKBUN_SECRET_API_KEY as repository Actions secrets."
+            if [ -z "$API_KEY" ]; then echo "::error::PORKBUN_API_KEY is not available to this run"; fi
+            if [ -z "$SECRET_KEY" ]; then echo "::error::PORKBUN_SECRET_API_KEY is not available to this run"; fi
+            echo "::notice::Check that these are Actions repository secrets for HiHQHub/Offgridrc; values are never printed."
             exit 1
           fi
       - name: Ensure Resend SPF records in Porkbun DNS
