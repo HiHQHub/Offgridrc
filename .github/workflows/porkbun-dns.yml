@@ -1,6 +1,11 @@
 name: Repair Resend sending DNS
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/porkbun-dns.yml']
+permissions:
+  contents: read
 jobs:
   repair:
     runs-on: ubuntu-latest
@@ -23,17 +28,34 @@ jobs:
         run: |
           python3 - <<'PY'
           import json, os, urllib.request, urllib.error
-          base = "https://api.porkbun.com/api/json/v3/dns"
+          base = "https://api.porkbun.com/api/json/v3"
           domain = "offgridrc.com"
-          auth = {"apikey": os.environ["API_KEY"], "secretapikey": os.environ["SECRET_KEY"]}
+          def clean(name):
+              value = os.environ[name].strip()
+              if len(value)>1 and value[0]==value[-1] and value[0] in ("'", '"'):
+                  value = value[1:-1].strip()
+              if not value or any(ch.isspace() for ch in value):
+                  raise RuntimeError("Credential formatting is invalid; update the corresponding repository secret securely")
+              return value
+          auth = {"apikey": clean("API_KEY"), "secretapikey": clean("SECRET_KEY")}
+          for value in auth.values():
+              print("::add-mask::" + value)
           def call(path, data):
               req = urllib.request.Request(base + path, data=json.dumps(dict(auth, **data)).encode(), headers={"Content-Type":"application/json"})
-              with urllib.request.urlopen(req, timeout=30) as r:
-                  obj = json.load(r)
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      obj = json.load(r)
+              except urllib.error.HTTPError as e:
+                  # Do not print response bodies or credentials.
+                  if e.code == 400 and "001" in str(e.reason):
+                      raise RuntimeError("Porkbun rejected the API key/secret pair (001). Replace both secrets with a matching active pair.") from None
+                  raise RuntimeError(f"Porkbun request failed with HTTP {e.code}; check key permissions and domain API access.") from None
               if obj.get("status") != "SUCCESS":
                   raise RuntimeError(f"Porkbun API failed: {obj.get('message',obj.get('status'))}")
               return obj
-          rows = call("/retrieve/" + domain, {}).get("records", [])
+          call("/ping", {})
+          print("Porkbun authentication: successful")
+          rows = call("/dns/retrieve/" + domain, {}).get("records", [])
           wanted = [
               ("MX", "send", "feedback-smtp.eu-west-1.amazonses.com", "10"),
               ("TXT", "send", "v=spf1 include:amazonses.com ~all", None)
@@ -52,9 +74,9 @@ jobs:
                   data["prio"]=prio
               if len(matches)==1:
                   print(f"Updating {kind} {fqdn}")
-                  call("/edit/" + domain + "/" + str(matches[0]["id"]), data)
+                  call("/dns/edit/" + domain + "/" + str(matches[0]["id"]), data)
               else:
                   print(f"Creating {kind} {fqdn}")
-                  call("/create/" + domain, data)
+                  call("/dns/create/" + domain, data)
           print("Porkbun changes submitted. Check DNS authority and reverify in Resend.")
           PY
