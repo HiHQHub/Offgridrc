@@ -1,0 +1,259 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RE3L Mail Pilot API",
+    "version": "0.1.0",
+    "description": "Pilot mailbox API. Resend transport, immutable drafts, separate owner approval. See README for verified status and limitations."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001",
+      "description": "Standalone development; use HTTPS in production"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "mailboxKey": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "paths": {
+    "/api": {
+      "post": {
+        "operationId": "execute_mail_operation",
+        "security": [
+          {
+            "mailboxKey": []
+          }
+        ],
+        "x-openai-isConsequential": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "create_draft",
+                      "send_email",
+                      "list_emails",
+                      "search_emails",
+                      "read_email",
+                      "get_thread",
+                      "reply_to_email",
+                      "forward_email",
+                      "sync_inbox",
+                      "delivery_status"
+                    ]
+                  },
+                  "arguments": {
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "operation",
+                  "arguments"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid arguments"
+          },
+          "401": {
+            "description": "API key required"
+          },
+          "403": {
+            "description": "Scope, mailbox or owner approval denied"
+          }
+        }
+      }
+    }
+  },
+  "x-re3l-operations": {
+    "create_draft": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "email"
+          },
+          "minItems": 1,
+          "maxItems": 10
+        },
+        "subject": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "filename": {
+                "type": "string"
+              },
+              "content": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "filename",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "to",
+        "subject",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "send_email": {
+      "type": "object",
+      "properties": {
+        "draft_id": {
+          "type": "string"
+        },
+        "approval_token": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "draft_id",
+        "approval_token"
+      ],
+      "additionalProperties": false
+    },
+    "list_emails": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "search_emails": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "read_email": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "get_thread": {
+      "type": "object",
+      "properties": {
+        "thread_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "thread_id"
+      ],
+      "additionalProperties": false
+    },
+    "reply_to_email": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "forward_email": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "email"
+          },
+          "minItems": 1,
+          "maxItems": 10
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "to"
+      ],
+      "additionalProperties": false
+    },
+    "sync_inbox": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "delivery_status": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

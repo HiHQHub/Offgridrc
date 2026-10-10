@@ -1,0 +1,13 @@
+{
+  "resource": "https://re3l-mail-offgridrc.floot.app/_api/re3l-mcp",
+  "authorization_servers": [
+    "https://re3l-mail-offgridrc.floot.app"
+  ],
+  "scopes_supported": [
+    "read",
+    "write"
+  ],
+  "bearer_methods_supported": [
+    "header"
+  ]
+}

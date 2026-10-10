@@ -1,0 +1,5 @@
+// @ts-nocheck
+// Generated from portable JavaScript. Validate using the Node tests.
+import {createHash,createCipheriv,createDecipheriv,randomBytes} from 'node:crypto';
+export function seal(value,secret){if(!secret)throw new Error('Encryption key required');const iv=randomBytes(12),key=createHash('sha256').update(secret).digest(),cipher=createCipheriv('aes-256-gcm',key,iv);const encrypted=Buffer.concat([cipher.update(value,'utf8'),cipher.final()]);return [iv,cipher.getAuthTag(),encrypted].map(b=>b.toString('base64')).join('.');}
+export function open(value,secret){if(!secret)throw new Error('Encryption key required');const [iv,tag,data]=value.split('.').map(s=>Buffer.from(s,'base64'));const decipher=createDecipheriv('aes-256-gcm',createHash('sha256').update(secret).digest(),iv);decipher.setAuthTag(tag);return Buffer.concat([decipher.update(data),decipher.final()]).toString('utf8');}

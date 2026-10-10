@@ -1,0 +1,19 @@
+{
+  "name": "re3l-mail",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "worker": "node worker.mjs",
+    "bootstrap": "node bootstrap.mjs"
+  },
+  "dependencies": {
+    "postgres": "3.4.9",
+    "zod": "3.25.76"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
