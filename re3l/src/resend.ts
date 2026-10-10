@@ -1,4 +1,4 @@
-import { ProviderError, validateOutbound, type EmailProvider, type OutboundMessage, type SentMessage, type Address } from "./types.js";
+import { ProviderError, validateOutbound, type EmailProvider, type OutboundMessage, type SentMessage, type Address } from "./types.ts";
 
 /** Outbound adapter only. Inbound delivery is a separate authenticated webhook pipeline. */
 export class ResendProvider implements EmailProvider {
