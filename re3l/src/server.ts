@@ -7,7 +7,7 @@ import {ResendInbound} from "./resend-inbound.ts";
 import {validateConfig} from "./config.ts";
 import {ResendProvider} from "./resend.ts";
 import {DraftService} from "./drafts.ts";
-import {portalHtml} from "./portal.ts";
+import {portalHtml,portalScript} from "./portal.ts";
 const env=process.env;
 const config=validateConfig({version:1,domain:env.RE3L_DOMAIN,mailbox:env.RE3L_MAILBOX,provider:"resend"});
 if(!env.RESEND_WEBHOOK_SECRET||!env.RESEND_API_KEY||!env.RE3L_OWNER_TOKEN||env.RE3L_OWNER_TOKEN.length<32)
@@ -25,7 +25,8 @@ const server=createServer(async(req,res)=>{
  try{
   const path=new URL(req.url||"/","http://localhost").pathname;
   if(path==="/health"&&req.method==="GET")return send(200,{status:"running"});
-  if(path==="/"&&req.method==="GET"){res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"});res.end(portalHtml());return;}
+  if(path==="/"&&req.method==="GET"){res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"});res.end(portalHtml());return;}
+  if(path==="/portal.js"&&req.method==="GET"){res.writeHead(200,{"content-type":"application/javascript; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff"});res.end(portalScript());return;}
   if(path==="/webhooks/resend"&&req.method==="POST"){
    const raw=await bodyText(req);
    const headers=new Headers();
@@ -49,6 +50,36 @@ const server=createServer(async(req,res)=>{
   if(/^\/api\/drafts\/[0-9a-f-]{36}\/send$/i.test(path)&&req.method==="POST"){
    const data=JSON.parse(await bodyText(req,4000)) as {approval_token?:string};
    return send(200,await drafts.send(path.split("/")[3],data.approval_token||""));
+  }
+  if(path==="/api/connections"&&req.method==="GET"){
+   if(role!=="owner")return send(403,{error:"Owner access required"});
+   const connections:Record<string,{state:string;label:string;detail:string;owner:string}>={
+    hosting:{state:"ok",label:"Operational",detail:"RE3L application is responding",owner:"Customer-owned deployment"},
+    database:{state:"warning",label:"Checking",detail:"Database check pending",owner:"Customer-owned PostgreSQL"},
+    domain:{state:"warning",label:"Checking",detail:config.domain,owner:"Customer-owned domain"},
+    email:{state:"warning",label:"Checking",detail:"Resend status pending",owner:"Customer-owned Resend account"},
+    ai:{state:"warning",label:"Not connected",detail:"Verified AI authorization is not yet configured",owner:"Customer-controlled AI"}
+   };
+   try{
+    await store.pool.query("SELECT 1");
+    connections.database={state:"ok",label:"Operational",detail:"PostgreSQL connection verified",owner:"Customer-owned PostgreSQL"};
+   }catch{
+    connections.database={state:"down",label:"Offline",detail:"Unable to reach PostgreSQL",owner:"Customer-owned PostgreSQL"};
+   }
+   try{
+    const response=await fetch("https://api.resend.com/domains",{headers:{Authorization:"Bearer "+env.RESEND_API_KEY},signal:AbortSignal.timeout(8000)});
+    if(!response.ok)throw Error("Provider unavailable");
+    const payload=await response.json() as {data?:Array<{name?:string;status?:string}>};
+    connections.email={state:"ok",label:"Operational",detail:"Resend API authentication verified",owner:"Customer-owned Resend account"};
+    const domain=payload.data?.find(d=>d.name?.toLowerCase()===config.domain);
+    connections.domain=domain?.status==="verified"
+     ? {state:"ok",label:"Verified",detail:config.domain+" verified in Resend",owner:"Customer-owned domain"}
+     : {state:"warning",label:domain?"Pending":"Not found",detail:config.domain+" is not verified in the connected Resend account",owner:"Customer-owned domain"};
+   }catch{
+    connections.email={state:"down",label:"Offline",detail:"Unable to validate Resend API",owner:"Customer-owned Resend account"};
+    connections.domain={state:"warning",label:"Unknown",detail:"Domain verification could not be checked",owner:"Customer-owned domain"};
+   }
+   return send(200,{checkedAt:new Date().toISOString(),connections});
   }
   if(path==="/api/status"&&req.method==="GET")return send(200,{mailbox:config.mailbox,provider:"resend",ownership:"customer",role});
   if(path==="/api/messages"&&req.method==="GET"){
