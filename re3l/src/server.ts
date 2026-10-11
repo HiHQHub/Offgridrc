@@ -5,12 +5,16 @@ import {verifyResendWebhook} from "./webhook.ts";
 import {handleIncoming} from "./inbound.ts";
 import {ResendInbound} from "./resend-inbound.ts";
 import {validateConfig} from "./config.ts";
+import {ResendProvider} from "./resend.ts";
+import {DraftService} from "./drafts.ts";
+import {portalHtml} from "./portal.ts";
 const env=process.env;
 const config=validateConfig({version:1,domain:env.RE3L_DOMAIN,mailbox:env.RE3L_MAILBOX,provider:"resend"});
 if(!env.RESEND_WEBHOOK_SECRET||!env.RESEND_API_KEY||!env.RE3L_OWNER_TOKEN||env.RE3L_OWNER_TOKEN.length<32)
  throw Error("Missing webhook, provider or strong owner authentication secret");
 const store=new MailStore(makePool(env.DATABASE_URL||""));
 const inbound=new ResendInbound(env.RESEND_API_KEY);
+const drafts=new DraftService(store.pool,new ResendProvider(env.RESEND_API_KEY),config.mailbox);
 function authenticated(value:string|null):boolean {
  const token=value?.match(/^Bearer (.+)$/)?.[1]||"";
  const a=Buffer.from(token),b=Buffer.from(env.RE3L_OWNER_TOKEN||"");
@@ -26,6 +30,7 @@ const server=createServer(async(req,res)=>{
  try{
   const path=new URL(req.url||"/","http://localhost").pathname;
   if(path==="/health"&&req.method==="GET")return send(200,{status:"running"});
+  if(path==="/"&&req.method==="GET"){res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"});res.end(portalHtml());return;}
   if(path==="/webhooks/resend"&&req.method==="POST"){
    const raw=await bodyText(req);
    const headers=new Headers();
@@ -35,6 +40,17 @@ const server=createServer(async(req,res)=>{
    return send(200,result);
   }
   if(!authenticated(typeof req.headers.authorization==="string"?req.headers.authorization:null))return send(401,{error:"Unauthorized"});
+  if(path==="/api/drafts"&&req.method==="POST"){
+   const data=JSON.parse(await bodyText(req,120000)) as {to?:string;subject?:string;text?:string};
+   return send(201,await drafts.create(data.to||"",data.subject||"",data.text||""));
+  }
+  if(/^\/api\/drafts\/[0-9a-f-]{36}\/approve$/i.test(path)&&req.method==="POST"){
+   return send(200,await drafts.approve(path.split("/")[3]));
+  }
+  if(/^\/api\/drafts\/[0-9a-f-]{36}\/send$/i.test(path)&&req.method==="POST"){
+   const data=JSON.parse(await bodyText(req,4000)) as {approval_token?:string};
+   return send(200,await drafts.send(path.split("/")[3],data.approval_token||""));
+  }
   if(path==="/api/status"&&req.method==="GET")return send(200,{mailbox:config.mailbox,provider:"resend",ownership:"customer"});
   if(path==="/api/messages"&&req.method==="GET"){
    const url=new URL(req.url||"/","http://localhost");
