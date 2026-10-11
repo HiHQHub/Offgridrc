@@ -11,7 +11,7 @@ test("MCP advertises read, search and draft tools but never send or approve",asy
 });
 test("MCP creates draft without any send capability",async()=>{
  let drafted=false;
- const drafts={create:async(to:string,subject:string,text:string)=>{drafted=true;return {id:"draft_1",to,subject,text,approval_required:true}}} as DraftService;
+ const drafts={create:async(to:string,subject:string,text:string)=>{drafted=true;return {id:"draft_1",to,subject,text,approval_required:true}}} as unknown as DraftService;
  const response=await handleMcp({jsonrpc:"2.0",id:2,method:"tools/call",params:{name:"create_draft",arguments:{to:"user@example.org",subject:"Hi",text:"Hello"}}},{} as MailStore,drafts);
  assert.equal(drafted,true);
  assert.equal((response as any).result.content[0].text.includes("approval_required"),true);
