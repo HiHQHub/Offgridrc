@@ -1,5 +1,5 @@
 import {createServer} from "node:http";
-import {timingSafeEqual} from "node:crypto";
+import {classifyBearer,canPerform} from "./access.ts";
 import {makePool,MailStore} from "./store.ts";
 import {verifyResendWebhook} from "./webhook.ts";
 import {handleIncoming} from "./inbound.ts";
@@ -15,11 +15,6 @@ if(!env.RESEND_WEBHOOK_SECRET||!env.RESEND_API_KEY||!env.RE3L_OWNER_TOKEN||env.R
 const store=new MailStore(makePool(env.DATABASE_URL||""));
 const inbound=new ResendInbound(env.RESEND_API_KEY);
 const drafts=new DraftService(store.pool,new ResendProvider(env.RESEND_API_KEY),config.mailbox);
-function authenticated(value:string|null):boolean {
- const token=value?.match(/^Bearer (.+)$/)?.[1]||"";
- const a=Buffer.from(token),b=Buffer.from(env.RE3L_OWNER_TOKEN||"");
- return a.length===b.length&&timingSafeEqual(a,b);
-}
 async function bodyText(req:import("node:http").IncomingMessage,max=200000):Promise<string> {
  let raw="";
  for await(const chunk of req){raw+=chunk.toString("utf8");if(Buffer.byteLength(raw)>max)throw Error("Request too large");}
@@ -39,7 +34,11 @@ const server=createServer(async(req,res)=>{
    const result=await handleIncoming(store,inbound,event.eventId,event.eventType,event.emailId,config.mailbox);
    return send(200,result);
   }
-  if(!authenticated(typeof req.headers.authorization==="string"?req.headers.authorization:null))return send(401,{error:"Unauthorized"});
+  const role=classifyBearer(typeof req.headers.authorization==="string"?req.headers.authorization:undefined,env.RE3L_OWNER_TOKEN!,env.RE3L_ASSISTANT_TOKEN||"");
+  if(role==="none")return send(401,{error:"Unauthorized"});
+  if(path.endsWith("/approve")||path.endsWith("/send")){
+   if(!canPerform(role,path.endsWith("/approve")?"approve":"send"))return send(403,{error:"Owner approval required"});
+  }
   if(path==="/api/drafts"&&req.method==="POST"){
    const data=JSON.parse(await bodyText(req,120000)) as {to?:string;subject?:string;text?:string};
    return send(201,await drafts.create(data.to||"",data.subject||"",data.text||""));
@@ -51,7 +50,7 @@ const server=createServer(async(req,res)=>{
    const data=JSON.parse(await bodyText(req,4000)) as {approval_token?:string};
    return send(200,await drafts.send(path.split("/")[3],data.approval_token||""));
   }
-  if(path==="/api/status"&&req.method==="GET")return send(200,{mailbox:config.mailbox,provider:"resend",ownership:"customer"});
+  if(path==="/api/status"&&req.method==="GET")return send(200,{mailbox:config.mailbox,provider:"resend",ownership:"customer",role});
   if(path==="/api/messages"&&req.method==="GET"){
    const url=new URL(req.url||"/","http://localhost");
    const limit=Number(url.searchParams.get("limit")||30);
