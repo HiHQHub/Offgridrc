@@ -11,6 +11,7 @@ services:
       - re3l-db:/var/lib/postgresql/data
       - ./sql/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
       - ./sql/002_drafts.sql:/docker-entrypoint-initdb.d/002_drafts.sql:ro
+      - ./sql/003_message_id_index.sql:/docker-entrypoint-initdb.d/003_message_id_index.sql:ro
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U re3l -d re3l"]
       interval: 10s

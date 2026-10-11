@@ -28,6 +28,16 @@ test("rejects empty email before contacting provider", async () => {
   assert.equal(called,false);
 });
 
+test("maps reply headers and rejects header injection",async()=>{
+ let payload:any;
+ const fakeFetch=(async(_url:unknown,init?:RequestInit)=>{payload=JSON.parse(init?.body as string);return new Response(JSON.stringify({id:"sent_reply"}));}) as typeof fetch;
+ const provider=new ResendProvider("test-only-key",fakeFetch);
+ const message={from:{email:"hello@example.org"},to:[{email:"test@example.net"}],subject:"Re: test",text:"Fixture",inReplyTo:"<parent@example.net>"};
+ await provider.send(message);
+ assert.deepEqual(payload.headers,{"In-Reply-To":"<parent@example.net>",References:"<parent@example.net>"});
+ await assert.rejects(provider.send({...message,inReplyTo:"<parent@example.net>\r\nBcc: other@example.net"}));
+});
+
 test("does not leak provider error body or API credentials", async () => {
   const fakeFetch = (async () => new Response("private provider diagnostic",{status:403})) as typeof fetch;
   await assert.rejects(() => new ResendProvider("secret-key",fakeFetch).send({

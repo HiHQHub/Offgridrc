@@ -25,4 +25,5 @@ export function validateOutbound(message: OutboundMessage): void {
   if (!message.from.email || !message.to.length || message.to.some(a => !a.email)) throw new Error("A sender and recipient are required");
   if (!message.subject.trim()) throw new Error("Subject is required");
   if (!message.text?.trim() && !message.html?.trim()) throw new Error("Message body is required");
+  if(message.inReplyTo&&!/^<[^<>\s]{1,998}>$/.test(message.inReplyTo))throw Error("Invalid reply header");
 }

@@ -19,9 +19,9 @@ const store=new MailStore(makePool(env.DATABASE_URL||""));
 const inbound=new ResendInbound(env.RESEND_API_KEY);
 const drafts=new DraftService(store.pool,new ResendProvider(env.RESEND_API_KEY),config.mailbox);
 async function bodyText(req:import("node:http").IncomingMessage,max=200000):Promise<string> {
- let raw="";
- for await(const chunk of req){raw+=chunk.toString("utf8");if(Buffer.byteLength(raw)>max)throw Error("Request too large");}
- return raw;
+ const chunks:Buffer[]=[];let size=0;
+ for await(const chunk of req){const bytes=Buffer.from(chunk);size+=bytes.length;if(size>max)throw Error("Request too large");chunks.push(bytes);}
+ return Buffer.concat(chunks).toString("utf8");
 }
 const server=createServer(async(req,res)=>{
  const send=(status:number,data:unknown)=>{res.writeHead(status,{"content-type":"application/json","cache-control":"no-store","x-content-type-options":"nosniff"});res.end(JSON.stringify(data));};
@@ -34,9 +34,12 @@ const server=createServer(async(req,res)=>{
    const raw=await bodyText(req);
    const headers=new Headers();
    for(const key of ["svix-id","svix-timestamp","svix-signature"]){const val=req.headers[key];if(typeof val==="string")headers.set(key,val);}
-   const event=verifyResendWebhook(raw,headers,env.RESEND_WEBHOOK_SECRET!);
-   const result=await handleIncoming(store,inbound,event.eventId,event.eventType,event.emailId,config.mailbox);
-   return send(200,result);
+   let event:ReturnType<typeof verifyResendWebhook>;
+   try{event=verifyResendWebhook(raw,headers,env.RESEND_WEBHOOK_SECRET!);}catch{return send(400,{error:"Invalid webhook"});}
+   try{
+    const result=await handleIncoming(store,inbound,event.eventId,event.eventType,event.emailId,config.mailbox);
+    return send(200,result);
+   }catch{return send(503,{error:"Webhook processing unavailable; retry required"});}
   }
   const role=classifyBearer(typeof req.headers.authorization==="string"?req.headers.authorization:undefined,env.RE3L_OWNER_TOKEN!,env.RE3L_ASSISTANT_TOKEN||"");
   if(role==="none")return send(401,{error:"Unauthorized"});
@@ -56,8 +59,8 @@ const server=createServer(async(req,res)=>{
    return send(200,{drafts:await drafts.pending()});
   }
   if(path==="/api/drafts"&&req.method==="POST"){
-   const data=JSON.parse(await bodyText(req,120000)) as {to?:string;subject?:string;text?:string};
-   return send(201,await drafts.create(data.to||"",data.subject||"",data.text||""));
+   const data=JSON.parse(await bodyText(req,120000)) as {to?:string;subject?:string;text?:string;reply_to_id?:string};
+   return send(201,await drafts.create(data.to||"",data.subject||"",data.text||"",data.reply_to_id));
   }
   if(/^\/api\/drafts\/[0-9a-f-]{36}\/approve$/i.test(path)&&req.method==="POST"){
    return send(200,await drafts.approve(path.split("/")[3]));
@@ -111,8 +114,8 @@ const server=createServer(async(req,res)=>{
   }
   return send(404,{error:"Not found"});
  }catch(e){
-  const message=e instanceof Error?e.message:"Unexpected failure";
-  console.error("RE3L request error",message.replace(/Bearer\s+[^\s]+/g,"Bearer [redacted]"));
+  // Database/provider exceptions can contain credentials or message contents.
+  console.error("RE3L request failed");
   return send(400,{error:"Request failed"});
  }
 });

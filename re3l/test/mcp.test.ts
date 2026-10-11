@@ -6,7 +6,7 @@ import type {DraftService} from "../src/drafts.ts";
 test("MCP advertises read, search and draft tools but never send or approve",async()=>{
  const result=await handleMcp({jsonrpc:"2.0",id:1,method:"tools/list"},{} as MailStore,{} as DraftService);
  const names=(result as any).result.tools.map((t:{name:string})=>t.name);
- assert.deepEqual(names,["list_emails","search_emails","read_email","create_draft"]);
+ assert.deepEqual(names,["list_emails","search_emails","read_email","get_thread","create_draft"]);
  assert.equal(names.includes("send_email"),false);
 });
 test("MCP creates draft without any send capability",async()=>{

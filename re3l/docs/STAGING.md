@@ -25,7 +25,7 @@ This runs on infrastructure controlled by the customer. It is a **staging candid
 - The UI uses manually-entered owner credentials, not a complete user authentication system.
 - No OAuth MCP client registration yet in this standalone package.
 - The AI token is only suitable for integration development, not public release.
-- Email threading and attachments need further work.
+- Reply-header threading is implemented but needs the real external-inbox acceptance loop. Attachments are not persisted.
 - The SQL init scripts run only on initial database creation; subsequent upgrades require a migration mechanism.
 - Delivery failures must be reconciled manually before a retry to avoid duplicate sends.
 - A customer-owned deployment still processes personal data; appropriate GDPR terms and documentation remain necessary.

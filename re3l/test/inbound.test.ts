@@ -4,7 +4,7 @@ import {handleIncoming} from "../src/inbound.ts";
 import type {MailStore} from "../src/store.ts";
 test("imports incoming email only for configured mailbox",async()=>{
  let writes=0,events=0;
- const store={ingest:async()=>{writes++;return true},recordEvent:async()=>{events++;return true}} as unknown as MailStore;
+ const store={ingest:async()=>{writes++;return true},processEvent:async(_id:string,_type:string,work:(tx:MailStore)=>Promise<unknown>)=>{events++;return work(store)}} as unknown as MailStore;
  const provider={fetchReceived:async()=>({id:"in_1",from:"person@example.net",to:["hello@example.org"],subject:"Hi",text:"World"})};
  assert.deepEqual(await handleIncoming(store,provider,"evt_1","email.received","in_1","hello@example.org"),{imported:true});
  assert.equal(writes,1);assert.equal(events,1);

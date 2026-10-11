@@ -1,14 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {spawn} from "node:child_process";
-import {randomBytes,randomInt} from "node:crypto";
+import {randomBytes,randomInt,createHmac} from "node:crypto";
+import {request as httpRequest} from "node:http";
 
 test("HTTP boundary denies AI approval/send and unauthenticated MCP",async()=>{
  const owner=randomBytes(32).toString("hex"),assistant=randomBytes(32).toString("hex");
  const port=randomInt(20000,50000);
+ const webhookKey=randomBytes(32);
  const child=spawn(process.execPath,["--import","tsx","src/server.ts"],{
   env:{...process.env,PORT:String(port),DATABASE_URL:"postgres://test:test@127.0.0.1:1/test",
-   RESEND_API_KEY:"test-only-not-a-real-key",RESEND_WEBHOOK_SECRET:"whsec_"+randomBytes(32).toString("base64"),
+   RESEND_API_KEY:"test-only-not-a-real-key",RESEND_WEBHOOK_SECRET:"whsec_"+webhookKey.toString("base64"),
    RE3L_OWNER_TOKEN:owner,RE3L_ASSISTANT_TOKEN:assistant,RE3L_DOMAIN:"example.org",RE3L_MAILBOX:"hello@example.org"},
   stdio:["ignore","pipe","pipe"]
  });
@@ -28,7 +30,7 @@ test("HTTP boundary denies AI approval/send and unauthenticated MCP",async()=>{
   assert.equal((await request("/mcp","invalid",rpc)).status,401);
   const tools=await request("/mcp",assistant,rpc);
   assert.equal(tools.status,200);
-  assert.deepEqual((await tools.json()).result.tools.map((t:{name:string})=>t.name),["list_emails","search_emails","read_email","create_draft"]);
+  assert.deepEqual((await tools.json()).result.tools.map((t:{name:string})=>t.name),["list_emails","search_emails","read_email","get_thread","create_draft"]);
   for(const operation of ["approve","send"]){
    assert.equal((await request(`/api/drafts/00000000-0000-0000-0000-000000000000/${operation}`,assistant,{})).status,403);
   }
@@ -36,6 +38,17 @@ test("HTTP boundary denies AI approval/send and unauthenticated MCP",async()=>{
   assert.equal((await request("/api/drafts/pending",assistant)).status,403);
   assert.equal((await request("/api/status",owner)).status,200);
   assert.equal((await request("/webhooks/resend",undefined,{type:"email.received",data:{email_id:"test"}})).status,400);
+  // A signed body split within a multibyte character must remain byte-for-byte valid.
+  const body=Buffer.from(JSON.stringify({type:"email.test",data:{email_id:"fixture",text:"\u00e9"}}));
+  const id="evt_utf8",timestamp=String(Math.floor(Date.now()/1000));
+  const signature=createHmac("sha256",webhookKey).update(`${id}.${timestamp}.`).update(body).digest("base64");
+  const status=await new Promise<number>((resolve,reject)=>{
+   const req=httpRequest(`http://127.0.0.1:${port}/webhooks/resend`,{method:"POST",headers:{"svix-id":id,"svix-timestamp":timestamp,"svix-signature":"v1,"+signature,"content-type":"application/json"}},res=>{res.resume();res.on("end",()=>resolve(res.statusCode!));});
+   req.on("error",reject);req.setTimeout(5000,()=>req.destroy(Error("Test request timeout")));
+   const split=body.indexOf(Buffer.from("\u00e9"))+1;
+   req.write(body.subarray(0,split));req.end(body.subarray(split));
+  });
+  assert.equal(status,503); // Signature passed; unavailable fixture DB requires retry.
   const html=await (await request("/")).text();
   assert.match(html,/SYSTEM \/ CONNECTIONS/);
   assert.match(html,/OWNER \/ APPROVAL QUEUE/);
