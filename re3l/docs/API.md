@@ -10,8 +10,13 @@ The current standalone server is a **development MVP**, not a hardened public pr
 
 All API routes other than liveness and verified webhook require an `Authorization: Bearer <RE3L_OWNER_TOKEN>` header. Use a randomly generated token, store it in customer-controlled secrets, never send it in URLs.
 
-This interface is intentionally read-only: outbound messages must use an owner-approved draft/send flow, which is **not yet available in this standalone service**. Do not expose it as a ChatGPT connector until an OAuth authorization layer, separate approval path, and security review are completed.
+Draft creation and sending are now present in the code, but remain **unverified for production use**. The same owner bearer token can approve a draft; this does not yet provide a separate trusted, interactive user-consent screen. Never give this owner token directly to an AI agent. Do not expose it as a ChatGPT connector until an OAuth authorization layer, separate approval path, and security review are completed.
+
+- `POST /api/drafts` — bearer authenticated draft creation with `to`, `subject`, `text`.
+- `POST /api/drafts/{uuid}/approve` — bearer authenticated issue of a short-lived approval token.
+- `POST /api/drafts/{uuid}/send` — bearer authenticated send of the approved draft with `approval_token`.
+- `GET /` — static customer-ownership overview; not yet a signed-in management portal.
 
 For a local deployment, run `npm install`, apply `sql/001_initial.sql` to the customer's Postgres database, then set required environment secrets before `npm start`. A working always-on webhook requires a secure public HTTPS endpoint and a customer-controlled deployment. Do not replace the active pilot webhook until this service is tested.
 
-Known limitations: no outgoing message threading yet, no attachment persistence, no durable asynchronous worker, and no automated setup portal.
+Known limitations: no separate owner consent UI, no production OAuth/MCP integration, no outgoing message threading yet, no attachment persistence, no durable asynchronous worker, and no automated setup portal.
