@@ -20,3 +20,9 @@ Draft creation and sending are now present in the code, but remain **unverified 
 For a local deployment, run `npm install`, apply `sql/001_initial.sql` to the customer's Postgres database, then set required environment secrets before `npm start`. A working always-on webhook requires a secure public HTTPS endpoint and a customer-controlled deployment. Do not replace the active pilot webhook until this service is tested.
 
 Known limitations: no separate owner consent UI, no production OAuth/MCP integration, no outgoing message threading yet, no attachment persistence, no durable asynchronous worker, and no automated setup portal.
+
+## Isolated assistant access (foundation)
+
+Set a different high-entropy `RE3L_ASSISTANT_TOKEN` in the customer's own deployment. That token permits listing, reading, searching and creating drafts **only**. It cannot access approve/send routes. The owner token permits both and **must not** be passed to AI tools.
+
+This is a capability boundary for API testing, **not** production-ready OAuth. Assistants must use a proper user-specific OAuth flow with revocation, narrow scopes, CSRF protections, confirmation policies and audited consent before launch. The static portal is informational and cannot approve a message interactively yet.
