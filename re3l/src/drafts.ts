@@ -11,6 +11,10 @@ export class DraftService {
   await this.pool.query("INSERT INTO re3l_drafts(id,recipient,subject,body_text) VALUES($1,$2,$3,$4)",[id,to,subject,text]);
   return {id,status:"draft",to,subject,text,approval_required:true};
  }
+ async pending(){
+  const result=await this.pool.query("SELECT id,recipient,subject,body_text,status,created_at FROM re3l_drafts WHERE status='draft' ORDER BY created_at DESC LIMIT 50");
+  return result.rows;
+ }
  async approve(id:string){
   const token=randomBytes(32).toString("hex");
   const r=await this.pool.query("UPDATE re3l_drafts SET approval_hash=$2, approval_expires=now()+interval '10 minutes' WHERE id=$1 AND status='draft' RETURNING id",[id,digest(token)]);
