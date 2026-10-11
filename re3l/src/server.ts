@@ -40,6 +40,10 @@ const server=createServer(async(req,res)=>{
   if(path.endsWith("/approve")||path.endsWith("/send")){
    if(!canPerform(role,path.endsWith("/approve")?"approve":"send"))return send(403,{error:"Owner approval required"});
   }
+  if(path==="/api/drafts/pending"&&req.method==="GET"){
+   if(role!=="owner")return send(403,{error:"Owner access required"});
+   return send(200,{drafts:await drafts.pending()});
+  }
   if(path==="/api/drafts"&&req.method==="POST"){
    const data=JSON.parse(await bodyText(req,120000)) as {to?:string;subject?:string;text?:string};
    return send(201,await drafts.create(data.to||"",data.subject||"",data.text||""));
