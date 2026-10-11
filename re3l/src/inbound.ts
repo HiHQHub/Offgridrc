@@ -1,4 +1,4 @@
-import {MailStore} from "./store.ts";
+import {MailStore} from "./store.js";
 export interface InboundProvider {
   fetchReceived(id:string):Promise<{id:string;from:string;to:string[];subject?:string;text?:string;message_id?:string;headers?:Record<string,string>}>;
 }

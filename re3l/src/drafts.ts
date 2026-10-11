@@ -1,6 +1,6 @@
 import {createHash,randomBytes,randomUUID,timingSafeEqual} from "node:crypto";
 import type pg from "pg";
-import {ResendProvider} from "./resend.ts";
+import {ResendProvider} from "./resend.js";
 const digest=(v:string)=>createHash("sha256").update(v).digest("hex");
 const validAddress=(v:string)=>/^[^\s@<>\r\n]+@[^\s@<>\r\n]+$/.test(v);
 export class DraftService {

@@ -1,14 +1,14 @@
 import {createServer} from "node:http";
-import {classifyBearer,canPerform} from "./access.ts";
-import {makePool,MailStore} from "./store.ts";
-import {verifyResendWebhook} from "./webhook.ts";
-import {handleIncoming} from "./inbound.ts";
-import {ResendInbound} from "./resend-inbound.ts";
-import {validateConfig} from "./config.ts";
-import {ResendProvider} from "./resend.ts";
-import {DraftService} from "./drafts.ts";
-import {portalHtml,portalScript} from "./portal.ts";
-import {handleMcp} from "./mcp.ts";
+import {classifyBearer,canPerform} from "./access.js";
+import {makePool,MailStore} from "./store.js";
+import {verifyResendWebhook} from "./webhook.js";
+import {handleIncoming} from "./inbound.js";
+import {ResendInbound} from "./resend-inbound.js";
+import {validateConfig} from "./config.js";
+import {ResendProvider} from "./resend.js";
+import {DraftService} from "./drafts.js";
+import {portalHtml,portalScript} from "./portal.js";
+import {handleMcp} from "./mcp.js";
 const env=process.env;
 const config=validateConfig({version:1,domain:env.RE3L_DOMAIN,mailbox:env.RE3L_MAILBOX,provider:"resend"});
 if(!env.RESEND_WEBHOOK_SECRET||!env.RESEND_API_KEY||!env.RE3L_OWNER_TOKEN||env.RE3L_OWNER_TOKEN.length<32)

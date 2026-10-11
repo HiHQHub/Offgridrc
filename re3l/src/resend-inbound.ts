@@ -1,4 +1,4 @@
-import type {InboundProvider} from "./inbound.ts";
+import type {InboundProvider} from "./inbound.js";
 export class ResendInbound implements InboundProvider {
   constructor(private readonly key:string,private readonly fetchFn:typeof fetch=fetch){}
   async fetchReceived(id:string){

@@ -1,5 +1,5 @@
 import type {IncomingMessage,ServerResponse,RequestListener} from "node:http";
-import {portalHtml,portalScript} from "../src/portal.ts";
+import {portalHtml,portalScript} from "../src/portal.js";
 
 // Render setup without secrets; all mail operations remain unavailable until configured.
 let application:Promise<RequestListener>|undefined;
@@ -17,7 +17,7 @@ export default async function handler(req:IncomingMessage,res:ServerResponse){
   res.end(JSON.stringify({status:"setup_required",error:"Staging connections must be configured before email operations are available"}));return;
  }
  try{
-  application??=import("../src/server.ts").then(module=>module.handler);
+  application??=import("../src/server.js").then(module=>module.handler);
   await (await application)(req,res);
  }catch{
   application=undefined;
