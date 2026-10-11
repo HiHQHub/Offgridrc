@@ -23,7 +23,7 @@ async function bodyText(req:import("node:http").IncomingMessage,max=200000):Prom
  for await(const chunk of req){const bytes=Buffer.from(chunk);size+=bytes.length;if(size>max)throw Error("Request too large");chunks.push(bytes);}
  return Buffer.concat(chunks).toString("utf8");
 }
-const server=createServer(async(req,res)=>{
+export const handler:import("node:http").RequestListener=async(req,res)=>{
  const send=(status:number,data:unknown)=>{res.writeHead(status,{"content-type":"application/json","cache-control":"no-store","x-content-type-options":"nosniff"});res.end(JSON.stringify(data));};
  try{
   const path=new URL(req.url||"/","http://localhost").pathname;
@@ -118,5 +118,8 @@ const server=createServer(async(req,res)=>{
   console.error("RE3L request failed");
   return send(400,{error:"Request failed"});
  }
-});
-server.listen(Number(env.PORT||3000),()=>console.log("RE3L customer-owned API ready"));
+};
+if(!env.VERCEL){
+ const server=createServer(handler);
+ server.listen(Number(env.PORT||3000),()=>console.log("RE3L customer-owned API ready"));
+}
