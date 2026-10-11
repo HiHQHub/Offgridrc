@@ -1,0 +1,29 @@
+name: RE3L Core checks
+on:
+  push:
+    branches: [re3l-foundation]
+    paths:
+      - "re3l/**"
+      - ".github/workflows/re3l-core.yml"
+  pull_request:
+    paths:
+      - "re3l/**"
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: re3l
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: re3l/package-lock.json
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Typecheck
+        run: npm run check
+      - name: Unit tests
+        run: npm test
