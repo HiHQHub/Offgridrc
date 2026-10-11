@@ -2,9 +2,11 @@
 
 **Do not cut over production Offgrid RC DNS, webhooks, API credentials, or messages.**
 
+**2026-10-11 audit clarification:** The existing `re3l-mail-staging` Vercel deployment is a public setup/service portal, not proof of a functioning customer mailbox. `re3l/api/index.ts` defaults to service mode and deliberately rejects mail operations outside customer mode. Customer mail testing requires a separate customer-owned workspace, database and secrets. A Vercel `READY` state confirms deployment only, not send/receive readiness. See `docs/PRODUCTION-GATE.md` for the authoritative current release blockers.
+
 ## Gate before launching Work
 
-- Build/test CI green.
+- Confirm build/test CI green for the exact commit under test (do not infer this from a READY deployment).
 - Separate RE3L repository ready.
 - Customer-owned staging database and Resend staging domain/credentials prepared.
 - No secret copied to chat, Git, or centrally owned RE3L store.
@@ -30,9 +32,9 @@
 
 ## Fail-closed release blockers
 
-- Current GitHub standalone API uses a single bearer owner token. It is **not acceptable to give this token to an AI**.
-- Same bearer token can create, approve and send drafts, so an AI-facing integration is **unsafe until a separate human authorization session, limited AI scopes and OAuth are implemented and verified**.
-- Draft send errors are ambiguous and require provider reconciliation; do not permit automatic retries until verified.
+- The owner bearer token must never be provided to an AI. The current standalone API also supports a distinct assistant token for read/draft only; verify negative authorization tests against the deployed customer workspace.
+- Current code separates assistant and owner bearer credentials and denies AI approve/send; however, static development tokens are **not** production OAuth or revocable per-user authorization. Verify the separation at runtime before any AI connection.
+- Code includes send idempotency safeguards, but ambiguous provider outcomes still require **live reconciliation tests**. Never automatically resend without verifying provider state.
 - Email content is processed by RE3L code; customer ownership does not remove privacy/regulatory responsibilities.
 - Portable multi-provider setup and complete customer portal are not yet built.
 
