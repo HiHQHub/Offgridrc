@@ -1,0 +1,36 @@
+# Customer-owned, local-only reference deployment; do not expose port 3000 publicly without HTTPS and access policy.
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: re3l
+      POSTGRES_PASSWORD: ${RE3L_DB_PASSWORD:?Set RE3L_DB_PASSWORD}
+      POSTGRES_DB: re3l
+    volumes:
+      - re3l-db:/var/lib/postgresql/data
+      - ./sql/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
+      - ./sql/002_drafts.sql:/docker-entrypoint-initdb.d/002_drafts.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U re3l -d re3l"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      DATABASE_URL: "postgres://re3l:${RE3L_DB_PASSWORD:?Set RE3L_DB_PASSWORD}@postgres:5432/re3l"
+      RESEND_API_KEY: ${RESEND_API_KEY:?Set RESEND_API_KEY}
+      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:?Set RESEND_WEBHOOK_SECRET}
+      RE3L_OWNER_TOKEN: ${RE3L_OWNER_TOKEN:?Set RE3L_OWNER_TOKEN}
+      RE3L_ASSISTANT_TOKEN: ${RE3L_ASSISTANT_TOKEN:-}
+      RE3L_DOMAIN: ${RE3L_DOMAIN:?Set RE3L_DOMAIN}
+      RE3L_MAILBOX: ${RE3L_MAILBOX:?Set RE3L_MAILBOX}
+volumes:
+  re3l-db:
