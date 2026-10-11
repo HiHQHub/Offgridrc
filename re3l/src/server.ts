@@ -9,6 +9,7 @@ import {ResendProvider} from "./resend.js";
 import {DraftService} from "./drafts.js";
 import {portalHtml,portalScript} from "./portal.js";
 import {handleMcp} from "./mcp.js";
+import {setupHtml,setupScript} from "./setup.js";
 const env=process.env;
 const config=validateConfig({version:1,domain:env.RE3L_DOMAIN,mailbox:env.RE3L_MAILBOX,provider:"resend"});
 if(!env.RESEND_WEBHOOK_SECRET||!env.RESEND_API_KEY||!env.RE3L_OWNER_TOKEN||env.RE3L_OWNER_TOKEN.length<32)
@@ -28,6 +29,8 @@ export const handler:import("node:http").RequestListener=async(req,res)=>{
  try{
   const path=new URL(req.url||"/","http://localhost").pathname;
   if(path==="/health"&&req.method==="GET")return send(200,{status:"running"});
+  if(path==="/setup"&&req.method==="GET"){res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"});res.end(setupHtml());return;}
+  if(path==="/setup.js"&&req.method==="GET"){res.writeHead(200,{"content-type":"application/javascript; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff"});res.end(setupScript());return;}
   if(path==="/"&&req.method==="GET"){res.writeHead(200,{"content-type":"text/html; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"});res.end(portalHtml());return;}
   if(path==="/portal.js"&&req.method==="GET"){res.writeHead(200,{"content-type":"application/javascript; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff"});res.end(portalScript());return;}
   if(path==="/webhooks/resend"&&req.method==="POST"){

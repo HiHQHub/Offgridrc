@@ -1,36 +1,31 @@
-# RE3L Mail — community framework (foundation)
+# RE3L — customer-owned email infrastructure
 
-**Bring your domain. Bring your email. Bring your AI. Own your data.**
+**Bring your email. Bring your database. Bring your AI. Own your data.**
 
-This directory is a standalone *foundation*, staged on an isolated development branch. It is not yet a working production mailbox, ChatGPT integration, or deployed portal. Existing Offgrid RC assets remain untouched.
+RE3L is the service. Offgrid RC is a customer and pilot, not the service's mailbox or shared infrastructure.
 
-## Ownership and trust boundaries
+## Two deployment roles
 
-- The customer controls the domain, Resend (or other provider) account, application deployment, database/storage and chosen AI.
-- RE3L core runs in customer-owned infrastructure; no central RE3L mailbox database is required.
-- The AI communicates with the customer's deployment through authenticated tools; incoming email is untrusted content.
-- RE3L Managed, if offered, automates configuration and maintenance without transferring account or data ownership.
-- Provider free tiers are subject to provider limits; running a domain and AI may have separate costs.
+- **Public service portal**: the Vercel adapter defaults to service mode. It collects only domain, mailbox, customer deployment address and AI choice in browser memory. It generates credential-free setup downloads and links to the customer's portal. It does not call customer providers, store customer setup records, proxy customer credentials or expose mailbox APIs. `RE3L_MODE=service` makes the role explicit.
+- **Customer workspace**: deploy `re3l/` in the customer's own hosting account with `RE3L_MODE=customer`, their separate PostgreSQL database, provider credentials and distinct owner/assistant secrets. Each deployment serves one customer mailbox. Live checks, messages and send approvals run there. `/setup` remains available for setup guidance.
 
-## Initial scope
+A customer workspace is a separate deployment and database, not a row in a shared RE3L mailbox database. There is no central credential vault.
 
-- Provider-neutral `EmailProvider` contract
-- Resend outbound adapter, with explicit authorization using customer credentials
-- Customer deployment configuration validation
-- No secrets, live message content, or API keys committed to GitHub
+## Customer setup
 
-## Status / limitations
+1. Prepare the setup pack in the public portal. Downloads contain placeholders, not credentials.
+2. Verify the customer's own email domain in their Resend account. Preserve existing DNS and email routing.
+3. Provision their separate PostgreSQL database and apply all three `sql/` migrations.
+4. Deploy the `re3l` directory in their hosting account. Enter credentials only in their deployment's secret manager.
+5. Register signed email events after the endpoint is configured; leave existing live pilot routing intact until acceptance tests pass.
+6. Check connections and test the complete approved-send, delivery, reply and persistent-thread loop.
 
-- The real inbound email loop lives in a separate Floot RE3L Mail pilot, not the Offgrid RC website repository.
-- Resend inbound support, storage, threading, MCP integration, deployment and portal must be built/audited next.
-- Never expose a public sending endpoint before authentication, abuse controls and authorization are implemented.
-- Do not repoint production Resend webhooks until replacement handling is tested.
-- Customer-owned storage does not eliminate GDPR processor responsibilities when RE3L operates managed automation.
+See `docs/SELF-HOSTING.md` and `docs/API.md` for the supported development workflow.
 
-## Next steps
+## Current limits
 
-1. Inspect the existing Floot application when its daily build access becomes available.
-2. Extract functional inbound/outbound workflow, tests and verified data structures.
-3. Implement authenticated email tool endpoints, webhook signature verification, idempotency, message persistence and safe AI send approvals.
-4. Build a self-hosted single-view control portal (not an inbox).
-5. Move this directory into its own RE3L repository; do not merge into the Offgrid RC website.
+The setup flow prepares a manual configuration handoff; it does not provision accounts or verify a connection just by generating a download. Resend and PostgreSQL are the current supported email/storage providers. The MCP adapter is experimental; native ChatGPT OAuth, revocation and installation are not implemented. A ChatGPT choice in setup does not establish a connection.
+
+Do not advertise this as a production-ready public email service. Full external-inbox acceptance, backups/recovery, abuse protection, privacy review and independent customer-isolation deployment tests remain release gates. See `docs/PRODUCTION-GATE.md`.
+
+The current repository also contains Offgrid RC website assets. Deploy only `re3l/` from `re3l-foundation`; do not merge this work into the website branch or alter the existing website project.
