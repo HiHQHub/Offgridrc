@@ -8,6 +8,7 @@ import {validateConfig} from "./config.ts";
 import {ResendProvider} from "./resend.ts";
 import {DraftService} from "./drafts.ts";
 import {portalHtml,portalScript} from "./portal.ts";
+import {handleMcp} from "./mcp.ts";
 const env=process.env;
 const config=validateConfig({version:1,domain:env.RE3L_DOMAIN,mailbox:env.RE3L_MAILBOX,provider:"resend"});
 if(!env.RESEND_WEBHOOK_SECRET||!env.RESEND_API_KEY||!env.RE3L_OWNER_TOKEN||env.RE3L_OWNER_TOKEN.length<32)
@@ -40,6 +41,14 @@ const server=createServer(async(req,res)=>{
   if(path.endsWith("/approve")||path.endsWith("/send")){
    if(!canPerform(role,path.endsWith("/approve")?"approve":"send"))return send(403,{error:"Owner approval required"});
   }
+  if(path==="/mcp"&&req.method==="POST"){
+   if(role!=="assistant"&&role!=="owner")return send(403,{error:"Assistant authorization required"});
+   const message=JSON.parse(await bodyText(req,100000)) as {jsonrpc?:string;method?:string;id?:number|string|null;params?:{name?:string;arguments?:Record<string,unknown>}};
+   const result=await handleMcp(message,store,drafts);
+   if(result===null){res.writeHead(202,{"cache-control":"no-store"});res.end();return;}
+   return send(200,result);
+  }
+  if(path==="/mcp"&&req.method==="GET"){res.writeHead(405,{"allow":"POST"});res.end();return;}
   if(path==="/api/drafts/pending"&&req.method==="GET"){
    if(role!=="owner")return send(403,{error:"Owner access required"});
    return send(200,{drafts:await drafts.pending()});
