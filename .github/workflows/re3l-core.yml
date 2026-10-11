@@ -1,0 +1,40 @@
+name: RE3L Core checks
+on:
+  push:
+    branches: [re3l-foundation]
+    paths:
+      - "re3l/**"
+      - ".github/workflows/re3l-core.yml"
+  pull_request:
+    paths:
+      - "re3l/**"
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: re3l_test
+          POSTGRES_PASSWORD: test_only
+          POSTGRES_DB: re3l_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U re3l_test -d re3l_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      RE3L_TEST_DATABASE_URL: postgres://re3l_test:test_only@127.0.0.1:5432/re3l_test
+    defaults:
+      run:
+        working-directory: re3l
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run check
+      - name: Unit tests
+        run: npm test
