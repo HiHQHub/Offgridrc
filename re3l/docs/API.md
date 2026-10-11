@@ -26,3 +26,7 @@ Known limitations: no separate owner consent UI, no production OAuth/MCP integra
 Set a different high-entropy `RE3L_ASSISTANT_TOKEN` in the customer's own deployment. That token permits listing, reading, searching and creating drafts **only**. It cannot access approve/send routes. The owner token permits both and **must not** be passed to AI tools.
 
 This is a capability boundary for API testing, **not** production-ready OAuth. Assistants must use a proper user-specific OAuth flow with revocation, narrow scopes, CSRF protections, confirmation policies and audited consent before launch. The static portal is informational and cannot approve a message interactively yet.
+
+## MCP staging endpoint
+
+`POST /mcp` accepts JSON-RPC 2.0 requests for `initialize`, `tools/list`, `tools/call` and `ping`. An assistant bearer credential can list/search/read messages and create drafts, but **cannot approve or send**. The owner has a separate approval queue in the industrial control portal. This is an **experimental MCP adapter**, not a production ChatGPT app: OAuth discovery/authorization and client interoperability must be validated before connecting ChatGPT.
