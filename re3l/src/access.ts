@@ -6,6 +6,8 @@ function equal(a:string,b:string):boolean {
 }
 /** Assistant tokens are intentionally incapable of approval or sending. */
 export function classifyBearer(header:string|undefined,ownerToken:string,assistantToken:string):Role {
+ // A misconfigured shared credential must never inherit owner capabilities.
+ if(assistantToken && equal(ownerToken,assistantToken))return "none";
  const token=header?.match(/^Bearer ([^\s]+)$/)?.[1]||"";
  if(!token)return "none";
  if(equal(token,ownerToken))return "owner";

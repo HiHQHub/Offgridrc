@@ -20,5 +20,6 @@ test("empty, unknown, and reused assistant credentials fail closed",()=>{
  assert.equal(classifyBearer(undefined,owner,ai),"none");
  assert.equal(classifyBearer("Bearer unknown",owner,ai),"none");
  assert.equal(classifyBearer("Bearer "+ai,owner,owner),"none");
+ assert.equal(classifyBearer("Bearer "+owner,owner,owner),"none");
  assert.equal(canPerform("none","read"),false);
 });

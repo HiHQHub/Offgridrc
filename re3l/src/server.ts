@@ -13,6 +13,8 @@ const env=process.env;
 const config=validateConfig({version:1,domain:env.RE3L_DOMAIN,mailbox:env.RE3L_MAILBOX,provider:"resend"});
 if(!env.RESEND_WEBHOOK_SECRET||!env.RESEND_API_KEY||!env.RE3L_OWNER_TOKEN||env.RE3L_OWNER_TOKEN.length<32)
  throw Error("Missing webhook, provider or strong owner authentication secret");
+if(env.RE3L_ASSISTANT_TOKEN && (env.RE3L_ASSISTANT_TOKEN.length<32||env.RE3L_ASSISTANT_TOKEN===env.RE3L_OWNER_TOKEN))
+ throw Error("Assistant authentication requires a distinct strong secret");
 const store=new MailStore(makePool(env.DATABASE_URL||""));
 const inbound=new ResendInbound(env.RESEND_API_KEY);
 const drafts=new DraftService(store.pool,new ResendProvider(env.RESEND_API_KEY),config.mailbox);
