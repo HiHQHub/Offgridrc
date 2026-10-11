@@ -6,13 +6,18 @@
   "description": "Customer-owned AI-ready email framework foundation",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test test/*.test.ts"
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "start": "node --experimental-strip-types src/server.ts"
   },
   "engines": {
     "node": ">=22.10.0"
   },
   "devDependencies": {
     "typescript": "^5.9.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.15.5"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
   }
 }
