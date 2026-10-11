@@ -38,6 +38,15 @@ test("HTTP boundary denies AI approval/send and unauthenticated MCP",async()=>{
   assert.equal((await request("/api/drafts/pending",assistant)).status,403);
   assert.equal((await request("/api/status",owner)).status,200);
   assert.equal((await request("/webhooks/resend",undefined,{type:"email.received",data:{email_id:"test"}})).status,400);
+  const signedWebhook=async(payload:unknown)=>{
+   const raw=JSON.stringify(payload),id="evt_isolation",timestamp=String(Math.floor(Date.now()/1000));
+   const signature=createHmac("sha256",webhookKey).update(`${id}.${timestamp}.${raw}`).digest("base64");
+   return fetch(`http://127.0.0.1:${port}/webhooks/resend`,{method:"POST",headers:{"svix-id":id,"svix-timestamp":timestamp,"svix-signature":"v1,"+signature,"content-type":"application/json"},body:raw,signal:AbortSignal.timeout(5000)});
+  };
+  // Other account mail is acknowledged before touching the provider or unreachable fixture DB.
+  const unrelated=await signedWebhook({type:"email.received",data:{email_id:"fixture",to:["live@example.org"]}});
+  assert.equal(unrelated.status,200);assert.deepEqual(await unrelated.json(),{ignored:true});
+  assert.equal((await signedWebhook({type:"email.received",data:{email_id:"fixture"}})).status,400);
   // A signed body split within a multibyte character must remain byte-for-byte valid.
   const body=Buffer.from(JSON.stringify({type:"email.test",data:{email_id:"fixture",text:"\u00e9"}}));
   const id="evt_utf8",timestamp=String(Math.floor(Date.now()/1000));

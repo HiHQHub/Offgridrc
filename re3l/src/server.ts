@@ -36,6 +36,9 @@ export const handler:import("node:http").RequestListener=async(req,res)=>{
    for(const key of ["svix-id","svix-timestamp","svix-signature"]){const val=req.headers[key];if(typeof val==="string")headers.set(key,val);}
    let event:ReturnType<typeof verifyResendWebhook>;
    try{event=verifyResendWebhook(raw,headers,env.RESEND_WEBHOOK_SECRET!);}catch{return send(400,{error:"Invalid webhook"});}
+   // Account-wide webhooks include other mailboxes: never fetch their message bodies.
+   if(event.eventType==="email.received"&&!event.recipients?.some(address=>address.toLowerCase()===config.mailbox))
+    return send(200,{ignored:true});
    try{
     const result=await handleIncoming(store,inbound,event.eventId,event.eventType,event.emailId,config.mailbox);
     return send(200,result);
