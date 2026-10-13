@@ -38,7 +38,7 @@ jobs:
               raise SystemExit('Registrar access to fountn.ai unavailable; check domain API access')
           print('fountn.ai registrar read SUCCESS; no DNS writes')
           for row in payload.get('records', []):
-              if row.get('type') in ('A','AAAA','CNAME','MX','NS','CAA'):
+              if row.get('type') in ('A','AAAA','ALIAS','CNAME','MX','NS','CAA'):
                   print(json.dumps({k:row.get(k) for k in ('id','type','name','content','prio','ttl')},ensure_ascii=True))
           for host in ('fountn.ai','mail.fountn.ai','www.fountn.ai'):
               url='https://dns.google/resolve?name='+host+'&type='+('NS' if host=='fountn.ai' else 'CNAME')
