@@ -1,0 +1,51 @@
+name: Fountn read-only DNS inspection
+on:
+  push:
+    branches: [re3l-foundation]
+    paths: ['.github/workflows/fountn-dns-inspect.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Inspect only fountn.ai using existing registrar credentials
+        env:
+          API_KEY: ${{ secrets.PORKBUNAPIKEY }}
+          SECRET_KEY: ${{ secrets.PORKBUNSECRETAPIKEY }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          def credential(name):
+              value = os.environ.get(name, '').strip()
+              if len(value) > 1 and value[0] == value[-1] and value[0] in ("'", '"'):
+                  value = value[1:-1].strip()
+              if not value or any(c.isspace() for c in value):
+                  raise SystemExit('Missing or malformed existing registrar credential')
+              return value
+          request = urllib.request.Request('https://api.porkbun.com/api/json/v3/dns/retrieve/fountn.ai',
+              data=json.dumps({'apikey':credential('API_KEY'),'secretapikey':credential('SECRET_KEY')}).encode(),
+              headers={'Content-Type':'application/json'}, method='POST')
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  payload = json.load(response)
+          except urllib.error.HTTPError as error:
+              raise SystemExit('Registrar read rejected: HTTP '+str(error.code)) from None
+          except (urllib.error.URLError, TimeoutError, ValueError):
+              raise SystemExit('Registrar read unavailable') from None
+          if payload.get('status') != 'SUCCESS':
+              raise SystemExit('Registrar access to fountn.ai unavailable; check domain API access')
+          print('fountn.ai registrar read SUCCESS; no DNS writes')
+          for row in payload.get('records', []):
+              if row.get('type') in ('A','AAAA','CNAME','MX','NS','CAA'):
+                  print(json.dumps({k:row.get(k) for k in ('id','type','name','content','prio','ttl')},ensure_ascii=True))
+          for host in ('fountn.ai','mail.fountn.ai','www.fountn.ai'):
+              url='https://dns.google/resolve?name='+host+'&type='+('NS' if host=='fountn.ai' else 'CNAME')
+              try:
+                  with urllib.request.urlopen(url,timeout=15) as response:
+                      data=json.load(response)
+                  print('PUBLIC_DNS '+host+' '+json.dumps(data.get('Answer',[]),ensure_ascii=True))
+              except Exception:
+                  print('Public DNS check unavailable for '+host)
+          PY
