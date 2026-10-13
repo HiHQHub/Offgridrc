@@ -40,12 +40,18 @@ jobs:
           for row in payload.get('records', []):
               if row.get('type') in ('A','AAAA','ALIAS','CNAME','MX','NS','CAA'):
                   print(json.dumps({k:row.get(k) for k in ('id','type','name','content','prio','ttl')},ensure_ascii=True))
-          for host in ('fountn.ai','mail.fountn.ai','www.fountn.ai'):
-              url='https://dns.google/resolve?name='+host+'&type='+('NS' if host=='fountn.ai' else 'CNAME')
+          for host,kind in (('fountn.ai','NS'),('fountn.ai','A'),('mail.fountn.ai','CNAME'),('www.fountn.ai','CNAME')):
+              url='https://dns.google/resolve?name='+host+'&type='+kind
               try:
                   with urllib.request.urlopen(url,timeout=15) as response:
                       data=json.load(response)
-                  print('PUBLIC_DNS '+host+' '+json.dumps(data.get('Answer',[]),ensure_ascii=True))
+                  print('PUBLIC_DNS '+host+' '+kind+' '+json.dumps(data.get('Answer',[]),ensure_ascii=True))
               except Exception:
                   print('Public DNS check unavailable for '+host)
+          try:
+              with urllib.request.urlopen('https://fountn.ai/',timeout=20) as response:
+                  body=response.read(300000).decode('utf-8','replace')
+                  print('HTTPS '+str(response.status)+' '+response.geturl()+' Fountn Mail page='+str('Fountn' in body and 'Mail' in body))
+          except (urllib.error.URLError,TimeoutError,ValueError):
+              print('HTTPS not ready from independent runner; no security bypass attempted')
           PY
