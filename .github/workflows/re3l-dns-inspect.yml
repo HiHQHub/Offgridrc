@@ -1,0 +1,44 @@
+name: RE3L read-only DNS inspection
+on:
+  push:
+    branches: [re3l-foundation]
+    paths: ['.github/workflows/re3l-dns-inspect.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Read re3l.com DNS using existing Porkbun secrets
+        env:
+          API_KEY: ${{ secrets.PORKBUNAPIKEY }}
+          SECRET_KEY: ${{ secrets.PORKBUNSECRETAPIKEY }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          def credential(name):
+              value = os.environ.get(name, '').strip()
+              if len(value) > 1 and value[0] == value[-1] and value[0] in ("'", '"'):
+                  value = value[1:-1].strip()
+              if not value or any(c.isspace() for c in value):
+                  raise SystemExit('Missing or malformed repository secret: ' + name)
+              return value
+          request = urllib.request.Request(
+              'https://api.porkbun.com/api/json/v3/dns/retrieve/re3l.com',
+              data=json.dumps({'apikey': credential('API_KEY'), 'secretapikey': credential('SECRET_KEY')}).encode(),
+              headers={'Content-Type': 'application/json'}, method='POST')
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  payload = json.load(response)
+          except urllib.error.HTTPError as error:
+              raise SystemExit('Porkbun read-only lookup rejected: HTTP ' + str(error.code)) from None
+          except (urllib.error.URLError, TimeoutError, ValueError):
+              raise SystemExit('Porkbun read-only lookup unavailable') from None
+          if payload.get('status') != 'SUCCESS':
+              raise SystemExit('Porkbun rejected read access to re3l.com; verify the key pair and domain API access')
+          print('Porkbun read-only lookup: SUCCESS; no DNS writes performed')
+          for row in payload.get('records', []):
+              if row.get('type') in ('A', 'AAAA', 'CNAME', 'MX', 'NS'):
+                  print(json.dumps({k: row.get(k) for k in ('type', 'name', 'content', 'prio')}, ensure_ascii=True))
+          PY

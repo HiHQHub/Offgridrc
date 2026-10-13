@@ -1,0 +1,71 @@
+name: Connect authorized fountn.ai website DNS
+on:
+  push:
+    branches: [re3l-foundation]
+    paths: ['.github/workflows/fountn-domain-connect.yml']
+permissions:
+  contents: read
+concurrency:
+  group: fountn-apex-dns
+  cancel-in-progress: false
+jobs:
+  connect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Replace only the identified root parking alias with the website A record
+        env:
+          API_KEY: ${{ secrets.PORKBUNAPIKEY }}
+          SECRET_KEY: ${{ secrets.PORKBUNSECRETAPIKEY }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error, datetime
+          if datetime.datetime.now(datetime.timezone.utc).date().isoformat() != '2026-10-13':
+              raise SystemExit('Authorized setup window ended; no DNS writes')
+          def credential(name):
+              value=os.environ.get(name,'').strip()
+              if len(value)>1 and value[0]==value[-1] and value[0] in ("'",'"'):
+                  value=value[1:-1].strip()
+              if not value or any(c.isspace() for c in value):
+                  raise SystemExit('Missing or malformed existing registrar credential')
+              return value
+          auth={'apikey':credential('API_KEY'),'secretapikey':credential('SECRET_KEY')}
+          def call(path,data=None):
+              req=urllib.request.Request('https://api.porkbun.com/api/json/v3'+path,
+                  data=json.dumps(dict(auth,**(data or {}))).encode(),
+                  headers={'Content-Type':'application/json'},method='POST')
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as response:
+                      payload=json.load(response)
+              except urllib.error.HTTPError as error:
+                  raise SystemExit('Registrar request rejected: HTTP '+str(error.code)) from None
+              except (urllib.error.URLError,TimeoutError,ValueError):
+                  raise SystemExit('Registrar request unavailable; reconcile before retry') from None
+              if payload.get('status')!='SUCCESS':
+                  raise SystemExit('Registrar rejected domain access or DNS operation')
+              return payload
+          domain,target,parking_id='fountn.ai','216.198.79.1','590153927'
+          def apex(r):return r.get('name','').rstrip('.').lower()==domain
+          def owned(r):return apex(r) and r.get('type')=='A' and r.get('content')==target
+          def snapshot(records):return sorted(json.dumps(r,sort_keys=True) for r in records if str(r.get('id'))!=parking_id)
+          before=call('/dns/retrieve/'+domain).get('records',[])
+          addresses=[r for r in before if apex(r) and r.get('type') in ('A','AAAA','CNAME','ALIAS')]
+          if addresses:
+              parking=len(addresses)==1 and str(addresses[0].get('id'))==parking_id and addresses[0].get('type')=='ALIAS' and addresses[0].get('content','').rstrip('.')=='pixie.porkbun.com'
+              if parking:
+                  call('/dns/edit/'+domain+'/'+parking_id,{'name':'','type':'A','content':target,'ttl':'600'})
+                  print('Replaced only root parking record '+parking_id+' with A '+target)
+              elif len(addresses)==1 and owned(addresses[0]) and str(addresses[0].get('id'))==parking_id:
+                  print('Approved root A record already present; no DNS write')
+              else:
+                  raise SystemExit('Conflicting root website record; no DNS writes')
+          else:
+              raise SystemExit('Identified parking record is absent; no DNS write')
+          after=call('/dns/retrieve/'+domain).get('records',[])
+          if len([r for r in after if owned(r) and str(r.get('id'))==parking_id])!=1:
+              raise SystemExit('Root A post-write verification failed; no automatic retry')
+          if snapshot(before)!=snapshot(after):
+              raise SystemExit('Unrelated DNS changed concurrently; operator review required')
+          print('PASS: root A verified; every other DNS record unchanged')
+          print('No MX, TXT, nameserver, wildcard, offgridrc.com or re3l.com DNS changed')
+          PY
