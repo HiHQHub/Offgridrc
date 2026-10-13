@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Add only the approved root website A record
+      - name: Replace only the identified root parking alias with the website A record
         env:
           API_KEY: ${{ secrets.PORKBUNAPIKEY }}
           SECRET_KEY: ${{ secrets.PORKBUNSECRETAPIKEY }}
@@ -44,21 +44,25 @@ jobs:
               if payload.get('status')!='SUCCESS':
                   raise SystemExit('Registrar rejected domain access or DNS operation')
               return payload
-          domain,target='fountn.ai','216.198.79.1'
+          domain,target,parking_id='fountn.ai','216.198.79.1','590153927'
           def apex(r):return r.get('name','').rstrip('.').lower()==domain
           def owned(r):return apex(r) and r.get('type')=='A' and r.get('content')==target
-          def snapshot(records):return sorted(json.dumps(r,sort_keys=True) for r in records if not owned(r))
+          def snapshot(records):return sorted(json.dumps(r,sort_keys=True) for r in records if str(r.get('id'))!=parking_id)
           before=call('/dns/retrieve/'+domain).get('records',[])
           addresses=[r for r in before if apex(r) and r.get('type') in ('A','AAAA','CNAME','ALIAS')]
           if addresses:
-              if len(addresses)!=1 or not owned(addresses[0]):
+              parking=len(addresses)==1 and str(addresses[0].get('id'))==parking_id and addresses[0].get('type')=='ALIAS' and addresses[0].get('content','').rstrip('.')=='pixie.porkbun.com'
+              if parking:
+                  call('/dns/edit/'+domain+'/'+parking_id,{'name':'','type':'A','content':target,'ttl':'600'})
+                  print('Replaced only root parking record '+parking_id+' with A '+target)
+              elif len(addresses)==1 and owned(addresses[0]) and str(addresses[0].get('id'))==parking_id:
+                  print('Approved root A record already present; no DNS write')
+              else:
                   raise SystemExit('Conflicting root website record; no DNS writes')
-              print('Approved root A record already present; no DNS write')
           else:
-              result=call('/dns/create/'+domain,{'name':'','type':'A','content':target,'ttl':'600'})
-              print('Created only root A fountn.ai -> '+target+'; record ID '+str(result.get('id','unknown')))
+              raise SystemExit('Identified parking record is absent; no DNS write')
           after=call('/dns/retrieve/'+domain).get('records',[])
-          if len([r for r in after if owned(r)])!=1:
+          if len([r for r in after if owned(r) and str(r.get('id'))==parking_id])!=1:
               raise SystemExit('Root A post-write verification failed; no automatic retry')
           if snapshot(before)!=snapshot(after):
               raise SystemExit('Unrelated DNS changed concurrently; operator review required')
